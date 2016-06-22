@@ -1,8 +1,5 @@
 #! /usr/bin/env perl
 
-use warnings;
-use Data::Dumper;
-
 use strict;
 use Getopt::Std;
 use LWP::UserAgent;
@@ -37,17 +34,17 @@ sub validate_option {
 sub get_issues_by_state {
     my ($ua, $url, $state) = @_;
     my $page = 1;
-    my $last_page;
+    my $last_page = 1;
     my @issues;
-    while (1) {
+    while ($page <= $last_page) {
         $url->query_form('state'=>$state, 'page'=>$page);
         print "Fetching $state issues $url - ";
         my $resp = $ua->get($url);
+
         if ($resp->is_success) {
             print "done\n";
         } else {
-            print "fail\n";
-            print "\nResponse:\n", $resp->decoded_content, "\n";
+            print "fail\n\nResponse:\n", $resp->decoded_content, "\n";
             exit 1;
         }
         my $issue = parse_json($resp->content);
@@ -55,11 +52,10 @@ sub get_issues_by_state {
             next if defined $_->{'pull_request'};
             push @issues, $_;
         }
-        if (not defined $last_page) {
+        if ($last_page eq 1) {
             $last_page = $1 if $resp->headers->{'link'}=~/page=(\d+)>; rel="last"/
         }
         $page += 1;
-        last if $page > $last_page;
     }
     return \@issues;
 }
@@ -92,14 +88,9 @@ sub format_issue {
         $closed_at = $1 if $issue->{'closed_at'} =~ /(\d{4}-\d{2}-\d{2})/;
     }
 
-    # escape comma
+    # escape quote
     my $title = $issue->{'title'};
-    if ($title =~ /,/) {
-        if ($title =~ /"/) {
-            $title =~ s/"/'/g;
-        }
-        $title = '"'.$title.'"';
-    }
+    $title =~ s/"/'/g;
 
     my $assignee = '';
     $assignee = $issue->{'assignee'}->{'login'} if defined $issue->{'assignee'};
@@ -108,9 +99,9 @@ sub format_issue {
     $milestone = $issue->{'milestone'}->{'title'} if defined $issue->{'milestone'};
 
     # label
-    my $label = join('|', map {$_->{'name'}} @{$issue->{'labels'}});
+    my $label = join(' | ', map {$_->{'name'}} @{$issue->{'labels'}});
 
-    return "$issue->{'number'}, $title, $label, $assignee, $issue->{'state'}, $milestone, $author, $created_at, $closed_at";
+    return "$issue->{'number'},\"$title\",$label,$assignee,$issue->{'state'},$milestone,$author,$created_at,$closed_at";
 }
 
 
@@ -121,8 +112,9 @@ validate_option(\%option);
 my $org = $option{'o'};
 my $repo = $option{'r'};
 my $token = $option{'t'};
-my $state = '';
 my $proxy = '';
+my $state = '';
+$proxy = $option{'p'} if defined $option{'p'};
 $state = $option{'s'} if defined $option{'s'};
 if (defined $option{'s'}) {
     if ($option{'s'} =~ /^(open|closed)$/i) {
@@ -133,14 +125,11 @@ if (defined $option{'s'}) {
     }
 }
 
-$proxy = $option{'p'} if defined $option{'p'};
-
 my $url_issues = URI->new("https://api.github.com/repos/$org/$repo/issues");
 my $headers = HTTP::Headers->new('User-Agent'=>'no-one',Accept=>'application/json',Authorization=>"token $token");
 my $ua = LWP::UserAgent->new;
 $ua->proxy(['https'], $proxy) if $proxy;
 $ua->default_headers($headers);
-
 
 my $issues;
 if ($state) {
@@ -150,9 +139,12 @@ if ($state) {
 }
 
 
-print "number, title, label, assignee, state, milestone, created_at, closed_at\n";
+print "\nnumber, title, label, assignee, state, milestone, created_at, closed_at\n";
 
 foreach (@$issues) {
     my $issue = format_issue($_);
     print "$issue\n";
 }
+
+undef $issues;
+
