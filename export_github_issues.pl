@@ -139,7 +139,7 @@ if ($state) {
 }
 
 
-print "\nnumber, title, label, assignee, state, milestone, created_at, closed_at\n";
+print "\nnumber, title, label, assignee, state, milestone, author, created_at, closed_at\n";
 
 foreach (@$issues) {
     my $issue = format_issue($_);
