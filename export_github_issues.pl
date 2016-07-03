@@ -73,10 +73,8 @@ sub get_closed_issues {
 sub get_all_issues {
     my ($ua, $url) = @_;
     my @issues;
-    my $open_issues = get_open_issues($ua, $url);
-    my $closed_issues = get_closed_issues($ua, $url);
-    push @issues, @$open_issues;
-    push @issues, @$closed_issues;
+    push @issues, @{get_open_issues($ua, $url)};
+    push @issues, @{get_closed_issues($ua, $url)};
     return \@issues;
 }
 
@@ -103,7 +101,6 @@ sub format_issue {
 
     return "$issue->{'number'},\"$title\",$label,$assignee,$issue->{'state'},$milestone,$author,$created_at,$closed_at";
 }
-
 
 my %option;
 getopts('o:r:t:p:s:', \%option) or usage();
@@ -138,13 +135,16 @@ if ($state) {
    $issues = get_all_issues($ua, $url_issues); 
 }
 
-
-print "\nnumber, title, label, assignee, state, milestone, author, created_at, closed_at\n";
+my $csv = './issues.csv';
+print "\nWriting to file $csv...\n";
+open(my $fh, '>', $csv) or die "\nUnable to open $csv: $!\n";
+print $fh "number, title, label, assignee, state, milestone, author, created_at, closed_at\n";
 
 foreach (@$issues) {
     my $issue = format_issue($_);
-    print "$issue\n";
+    print $fh "$issue\n";
 }
 
+close $fh;
 undef $issues;
 
