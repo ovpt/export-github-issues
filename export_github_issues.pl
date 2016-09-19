@@ -109,17 +109,13 @@ validate_option(\%option);
 my $org = $option{'o'};
 my $repo = $option{'r'};
 my $token = $option{'t'};
-my $proxy = '';
+my $proxy = defined $option{'p'} ? $option{'p'} : '';
 my $state = '';
-$proxy = $option{'p'} if defined $option{'p'};
-$state = $option{'s'} if defined $option{'s'};
-if (defined $option{'s'}) {
-    if ($option{'s'} =~ /^(open|closed)$/i) {
-        $state = $1;
-    } else {
-        print "state should be open or closed.\n";
-        usage();
-    }
+if (defined $option{'s'} && $option{'s'} =~ /^(open|closed)$/i) {
+    $state = $1;
+} else {
+    print "state should be open or closed.\n";
+    usage();
 }
 
 my $url_issues = URI->new("https://api.github.com/repos/$org/$repo/issues");
@@ -127,22 +123,14 @@ my $headers = HTTP::Headers->new('User-Agent'=>'no-one',Accept=>'application/jso
 my $ua = LWP::UserAgent->new;
 $ua->proxy(['https'], $proxy) if $proxy;
 $ua->default_headers($headers);
-
-my $issues;
-if ($state) {
-    $issues = get_issues_by_state($ua, $url_issues, $state);
-} else {
-   $issues = get_all_issues($ua, $url_issues); 
-}
-
+my $issues = $state ? get_issues_by_state($ua, $url_issues, $state) : get_all_issues($ua, $url_issues);
 my $csv = './issues.csv';
 print "\nWriting to file $csv...\n";
 open(my $fh, '>', $csv) or die "\nUnable to open $csv: $!\n";
 print $fh "number, title, label, assignee, state, milestone, author, created_at, closed_at\n";
 
 foreach (@$issues) {
-    my $issue = format_issue($_);
-    print $fh "$issue\n";
+    print $fh format_issue($_), "\n";
 }
 
 close $fh;
